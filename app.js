@@ -57,7 +57,6 @@ app.controller('WeatherController', function($scope, $http) {
         return self.indexOf(item) === index;
     });
 
-    // Dual-Compatibility: Maps to whatever input name your HTML uses
     $scope.city = "Mumbai"; 
     $scope.selectedCity = "Mumbai"; 
     $scope.weather = null; 
@@ -65,7 +64,6 @@ app.controller('WeatherController', function($scope, $http) {
     $scope.loading = false;
     $scope.error = "";
 
-    // Supports calls like getWeather(), getWeather('Mumbai'), or any variation
     $scope.getWeather = function(cityName) {
         var searchTarget = cityName || $scope.city || $scope.selectedCity;
         if (!searchTarget) return;
@@ -77,9 +75,22 @@ app.controller('WeatherController', function($scope, $http) {
         
         $http.get(url)
             .then(function(response) {
-                // Dual-Compatibility: Populates both common data variables
-                $scope.weather = response.data;
-                $scope.weatherData = response.data;
+                var data = response.data;
+                
+                // 🌪️ FLAT MAP DATA LAYER: Populates explicit variable properties to fit your index.html slots perfectly
+                data.temperature = Math.round(data.main.temp);
+                data.temp = Math.round(data.main.temp);
+                data.feels_like = Math.round(data.main.feels_like);
+                data.feels = Math.round(data.main.feels_like);
+                data.dewpoint = Math.round(data.main.temp - ((100 - data.main.humidity) / 5)); // Calculates standard physical dewpoint
+                data.windSpeed = data.wind.speed;
+                data.wind_speed = data.wind.speed;
+                data.visibilityMiles = (data.visibility / 1609).toFixed(1);
+                data.visibility_miles = (data.visibility / 1609).toFixed(1);
+
+                // Send the enhanced object to your templates
+                $scope.weather = data;
+                $scope.weatherData = data;
                 $scope.loading = false;
             })
             .catch(function(error) {
@@ -89,7 +100,6 @@ app.controller('WeatherController', function($scope, $http) {
             });
     };
 
-    // Backup alias function in case your button calls searchWeather()
     $scope.searchWeather = function() {
         $scope.getWeather();
     };
