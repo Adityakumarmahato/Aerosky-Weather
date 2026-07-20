@@ -57,22 +57,41 @@ app.controller('WeatherController', function($scope, $http) {
         return self.indexOf(item) === index;
     });
 
+    // Dual-Compatibility: Maps to whatever input name your HTML uses
     $scope.city = "Mumbai"; 
+    $scope.selectedCity = "Mumbai"; 
     $scope.weather = null; 
+    $scope.weatherData = null; 
+    $scope.loading = false;
+    $scope.error = "";
 
-    $scope.getWeather = function() {
-        var searchTarget = $scope.city;
+    // Supports calls like getWeather(), getWeather('Mumbai'), or any variation
+    $scope.getWeather = function(cityName) {
+        var searchTarget = cityName || $scope.city || $scope.selectedCity;
         if (!searchTarget) return;
+        
+        $scope.loading = true;
+        $scope.error = "";
         
         var url = "https://api.openweathermap.org/data/2.5/weather?q=" + encodeURIComponent(searchTarget) + "&units=metric&appid=" + apiKey;
         
         $http.get(url)
             .then(function(response) {
+                // Dual-Compatibility: Populates both common data variables
                 $scope.weather = response.data;
+                $scope.weatherData = response.data;
+                $scope.loading = false;
             })
             .catch(function(error) {
+                $scope.loading = false;
+                $scope.error = "Location payload error.";
                 console.error(error);
             });
+    };
+
+    // Backup alias function in case your button calls searchWeather()
+    $scope.searchWeather = function() {
+        $scope.getWeather();
     };
 
     $scope.getWeather();
