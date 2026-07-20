@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html ng-app="weatherApp">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AeroSky // Premium Live Weather Analytics</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/angularjs/1.8.2/angular.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4"></script>
+    <link rel="stylesheet" href="style.css">
+    <style>
+        [ng\:cloak], [ng-cloak], [data-ng-cloak], [x-ng-cloak], .ng-cloak, .x-ng-cloak {
+            display: none !important;
+        }
+    </style>
+</head>
+
+<body ng-controller="WeatherController" ng-cloak
+    class="bg-slate-950 text-slate-100 min-h-screen antialiased selection:bg-sky-500/30 transition-colors duration-1000"
+    ng-style="{'background': themeGradient}">
+
+    <div class="absolute top-0 left-1/4 w-96 h-96 rounded-full blur-3xl pointer-events-none opacity-40 transition-all duration-1000" ng-style="{'background': glowColor1}"></div>
+    <div class="absolute top-10 right-1/4 w-96 h-96 rounded-full blur-3xl pointer-events-none opacity-40 transition-all duration-1000" ng-style="{'background': glowColor2}"></div>
+
+    <div class="max-w-7xl mx-auto px-4 py-8 relative z-10">
+        <header class="flex flex-col md:flex-row items-center justify-between gap-6 mb-8 border-b border-slate-800 pb-6">
+            <div>
+                <h1 class="text-3xl font-black tracking-tight bg-gradient-to-r from-sky-400 via-indigo-400 to-purple-400 bg-clip-text text-transparent">AEROSKY</h1>
+                <p class="text-sm text-slate-400 mt-1">Premium Environmental Intelligence & Real-time Metrics</p>
+            </div>
+
+            <div class="relative w-full max-w-xl">
+                <div class="flex gap-2">
+                    <button ng-click="getDeviceLocation()" class="bg-slate-900/60 hover:bg-slate-800 border border-slate-800 p-3 rounded-xl text-sm transition-all text-slate-400 hover:text-white cursor-pointer flex items-center justify-center min-w-[46px]" title="Locate via GPS">
+                        🎯
+                    </button>
+                    <div class="relative flex-1">
+                        <input type="text" ng-model="city" ng-change="showSuggestions()" placeholder="Search destination city..." class="w-full bg-slate-900/60 border border-slate-800 rounded-xl px-4 py-3 text-sm focus:outline-none focus:border-sky-500 transition-colors backdrop-blur-md text-white">
+                        <ul class="absolute z-50 left-0 right-0 mt-2 bg-slate-900/95 border border-slate-800 rounded-xl overflow-hidden shadow-2xl backdrop-blur-xl" ng-if="suggestions.length">
+                            <li ng-repeat="item in suggestions" ng-click="selectCity(item)" class="px-4 py-3 text-sm text-slate-300 hover:bg-sky-500/10 hover:text-sky-400 cursor-pointer transition-colors border-b border-slate-800/50 last:border-0">
+                                📍 {{item}}
+                            </li>
+                        </ul>
+                    </div>
+                    <button ng-click="searchWeather()" class="bg-sky-500 hover:bg-sky-600 text-slate-950 font-bold px-6 py-3 rounded-xl text-sm transition-all shadow-lg shadow-sky-500/20 active:scale-98 cursor-pointer">
+                        Analyze
+                    </button>
+                    <button ng-click="toggleUnits()" class="bg-slate-900/60 border border-slate-800 font-mono text-xs font-bold text-sky-400 px-3 py-3 rounded-xl transition-all cursor-pointer hover:border-sky-500/40 min-w-[46px]" title="Toggle Metric/Imperial">
+                        °{{isCelsius ? 'C' : 'F'}}
+                    </button>
+                </div>
+                <div class="flex flex-wrap gap-2 mt-3 items-center" ng-if="recentCities.length">
+                    <span class="text-[11px] font-bold tracking-wider text-slate-500 uppercase">Recent Metrics:</span>
+                    <span ng-repeat="rc in recentCities" class="inline-flex items-center bg-slate-900/60 border border-slate-800 hover:border-slate-700 rounded-full pl-2.5 pr-1.5 py-0.5 text-xs text-slate-300 transition-all">
+                        <span ng-click="selectCity(rc)" class="cursor-pointer hover:text-sky-400">{{rc}}</span>
+                        <button ng-click="removeRecentCity(rc)" class="ml-1.5 text-slate-500 hover:text-rose-400 font-bold rounded-full w-4 h-4 flex items-center justify-center cursor-pointer text-[10px]">✕</button>
+                    </span>
+                </div>
+                <p class="absolute -bottom-6 left-0 text-xs font-semibold text-rose-400" ng-if="error">{{error}}</p>
+            </div>
+        </header>
+
+        <div class="bg-rose-500/10 border border-rose-500/20 rounded-2xl p-4 mb-6 flex items-center justify-between animate-pulse" ng-if="weatherAlert">
+            <div class="flex items-center gap-3">
+                <span class="text-xl">⚠️</span>
+                <div>
+                    <h4 class="text-sm font-bold text-rose-400 uppercase tracking-wider">Atmospheric Warning System</h4>
+                    <p class="text-xs text-rose-300/90 mt-0.5">{{weatherAlert}}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center py-24 border border-dashed border-slate-800 rounded-3xl bg-slate-900/10 backdrop-blur-sm" ng-if="!weather">
+            <div class="text-5xl mb-4">🌍</div>
+            <h3 class="text-xl font-bold text-slate-200">System Ready</h3>
+            <p class="text-sm text-slate-500 max-w-sm mx-auto mt-2">Enter a city above to generate full climate distributions, lifestyle recommendations, and environmental trends.</p>
+        </div>
+
+        <div ng-if="weather" class="space-y-8">
+            <main class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                <div class="lg:col-span-1 bg-gradient-to-b from-slate-900/80 to-slate-900/40 border border-slate-800/80 rounded-3xl p-6 shadow-xl backdrop-blur-md flex flex-col justify-between relative overflow-hidden group">
+                    <div class="absolute top-0 right-0 w-32 h-32 bg-sky-500/5 rounded-full blur-2xl pointer-events-none group-hover:bg-sky-500/10 transition-all"></div>
+                    <div>
+                        <div class="flex items-start justify-between">
+                            <div>
+                                <h2 class="text-4xl font-extrabold tracking-tight text-white">{{weather.name}}</h2>
+                                <p class="text-xs uppercase font-bold tracking-wider text-sky-400 mt-1">{{weather.sys.country}} &bull; Station Active</p>
+                            </div>
+                            <div class="flex flex-col items-end gap-1.5">
+                                <span class="text-[10px] bg-slate-800 border border-slate-700 text-slate-300 px-2 py-0.5 rounded font-mono font-bold tracking-widest">LIVE</span>
+                                <span class="text-[11px] font-mono font-semibold text-slate-400">{{localTimeStr}}</span>
+                            </div>
+                        </div>
+
+                        <div class="flex items-center my-6 gap-4 bg-slate-950/40 rounded-2xl p-4 border border-slate-800/40 relative">
+                            <span class="absolute top-3 right-3 text-sm" title="Day/Night Node Status">{{isDaytime ? '☀️' : '🌙'}}</span>
+                            <img ng-src="https://openweathermap.org/img/wn/{{weather.weather[0].icon}}@4x.png" class="w-24 h-24 object-contain" alt="Weather condition icon">
+                            <div>
+                                <h1 class="text-5xl font-black text-white tracking-tighter">{{convertTemp(weather.main.temp) | number:1}}°{{isCelsius ? 'C' : 'F'}}</h1>
+                                <p class="text-slate-400 capitalize text-sm font-medium mt-1">{{weather.weather[0].description}}</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="space-y-4">
+                        <div class="border-t border-slate-800/80 pt-4">
+                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Thermodynamic Profiles</h4>
+                            <div class="grid grid-cols-2 gap-2 text-xs font-mono text-slate-400">
+                                <div class="bg-slate-950/30 p-2 border border-slate-800/40 rounded-xl">Feels: <span class="text-white font-bold">{{convertTemp(weather.main.feels_like) | number:1}}°</span></div>
+                                <div class="bg-slate-950/30 p-2 border border-slate-800/40 rounded-xl">Dewpoint: <span class="text-white font-bold">{{convertTemp(dewPoint) | number:1}}°</span></div>
+                            </div>
+                        </div>
+                        
+                        <div class="border-t border-slate-800/80 pt-4">
+                            <h4 class="text-xs font-bold text-slate-400 uppercase tracking-wider">AI Premium Insights</h4>
+                            <div class="bg-indigo-500/5 border border-indigo-500/10 rounded-xl p-3.5 mt-2">
+                                <p class="text-xs text-indigo-300 leading-relaxed">
+                                    💡 <b>System Evaluation:</b> Comfort indicator matches a <span class="text-white font-semibold">{{comfortIndex}}</span> layout. {{getLifestyleAdvice(weather.main.temp, weather.main.humidity)}}
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="lg:col-span-2 space-y-6">
+                    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                        <div class="bg-slate-900/40 border border-slate-800/60 p-4 rounded-2xl backdrop-blur-sm">
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Humidity</p>
+                            <h3 class="text-2xl font-bold text-white mt-1 font-mono">{{weather.main.humidity}}%</h3>
+                            <div class="w-full bg-slate-800 h-1.5 rounded-full mt-3 overflow-hidden">
+                                <div class="bg-sky-400 h-1.5" ng-style="{'width': weather.main.humidity + '%'}"></div>
+                            </div>
+                        </div>
+                        <div class="bg-slate-900/40 border border-slate-800/60 p-4 rounded-2xl backdrop-blur-sm relative overflow-hidden group">
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Wind Velocity</p>
+                            <h3 class="text-2xl font-bold text-white mt-1 font-mono">
+                                {{convertSpeed(weather.wind.speed) | number:1}} <span class="text-xs text-slate-400">{{isCelsius ? 'm/s' : 'mph'}}</span>
+                            </h3>
+                            <div class="flex items-center gap-2 mt-2.5">
+                                <svg class="w-4 h-4 text-sky-400 transition-transform duration-500" ng-style="{'transform': 'rotate(' + (weather.wind.deg || 0) + 'deg)'}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3">
+                                    <line x1="12" y1="22" x2="12" y2="2"></line>
+                                    <polyline points="5 9 12 2 19 9"></polyline>
+                                </svg>
+                                <p class="text-[10px] text-slate-400 font-mono">{{weather.wind.deg || '0'}}° ({{getWindDirection(weather.wind.deg)}})</p>
+                            </div>
+                        </div>
+                        <div class="bg-slate-900/40 border border-slate-800/60 p-4 rounded-2xl backdrop-blur-sm">
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Barometer</p>
+                            <h3 class="text-2xl font-bold text-white mt-1 font-mono">{{weather.main.pressure}} <span class="text-xs text-slate-400">hPa</span></h3>
+                            <p class="text-[10px] mt-3 font-medium transition-colors" ng-class="baroChange.color">{{baroChange.text}}</p>
+                        </div>
+                        <div class="bg-slate-900/40 border border-slate-800/60 p-4 rounded-2xl backdrop-blur-sm">
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Visibility</p>
+                            <h3 class="text-2xl font-bold text-white mt-1 font-mono">
+                                {{convertDist(weather.visibility) | number:1}} <span class="text-xs text-slate-400">{{isCelsius ? 'km' : 'mi'}}</span>
+                            </h3>
+                            <p class="text-[10px] text-slate-400 mt-3 font-medium">Atmospheric clarity high</p>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div class="bg-slate-900/40 border border-slate-800/60 p-4 rounded-2xl backdrop-blur-sm" ng-if="aqi">
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Air Quality (AQI)</p>
+                            <h3 class="text-2xl font-bold mt-1 font-mono" ng-style="{'color': aqiConfig[aqi.main.aqi].color}">
+                                {{aqiConfig[aqi.main.aqi].label}}
+                            </h3>
+                            <p class="text-[10px] text-slate-400 mt-2 font-mono">PM2.5: {{aqi.components.pm2_5 | number:1}} &bull; NO2: {{aqi.components.no2 | number:1}}</p>
+                        </div>
+                        <div class="bg-slate-900/40 border border-slate-800/60 p-4 rounded-2xl backdrop-blur-sm" ng-if="uvIndex !== null">
+                            <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">UV Index Score</p>
+                            <h3 class="text-2xl font-bold mt-1 font-mono" ng-style="{'color': getUvConfig(uvIndex).color}">
+                                {{uvIndex | number:1}} <span class="text-xs font-sans font-medium text-slate-400">({{getUvConfig(uvIndex).label}})</span>
+                            </h3>
+                            <p class="text-[10px] text-slate-400 mt-2 font-medium">{{getUvConfig(uvIndex).advice}}</p>
+                        </div>
+                        <div class="bg-slate-900/40 border border-slate-800/60 p-4 rounded-2xl backdrop-blur-sm col-span-1 sm:col-span-1 flex flex-col justify-between">
+                            <div>
+                                <p class="text-xs font-semibold text-slate-500 uppercase tracking-wider">Solar Horizon</p>
+                                <div class="grid grid-cols-2 gap-2 mt-2 font-mono text-xs">
+                                    <div>🌅 <span class="text-amber-400 font-bold">{{weather.sys.sunrise * 1000 | date:'hh:mm a'}}</span></div>
+                                    <div>🌇 <span class="text-indigo-400 font-bold">{{weather.sys.sunset * 1000 | date:'hh:mm a'}}</span></div>
+                                </div>
+                            </div>
+                            <div class="w-full bg-slate-800/60 h-1 rounded-full overflow-hidden mt-2 relative">
+                                <div class="bg-gradient-to-r from-amber-400 to-indigo-500 h-full transition-all duration-500" ng-style="{'width': sunProgress + '%'}"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-900/40 border border-slate-800/60 p-5 rounded-3xl backdrop-blur-sm">
+                        <div class="flex items-center justify-between mb-4">
+                            <div>
+                                <h3 class="text-base font-bold text-white">Advanced Temperature Curve Analysis</h3>
+                                <p class="text-xs text-slate-500">Comparing Base, Feels-Like, and Deviation baselines</p>
+                            </div>
+                            <span class="text-xs bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 px-2.5 py-0.5 rounded-full font-mono font-bold tracking-wide">Dynamic</span>
+                        </div>
+                        <div class="relative w-full h-52">
+                            <canvas id="weatherChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </main>
+
+            <section class="bg-slate-900/20 border border-slate-800/60 rounded-3xl p-6 backdrop-blur-sm">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-lg font-bold text-white tracking-tight">5-Day Chrono-Distribution Forecast</h3>
+                        <p class="text-xs text-slate-500">Macro-timeline intervals mapped at 24-hour steps</p>
+                    </div>
+                </div>
+                <div class="grid grid-cols-2 sm:grid-cols-5 gap-3">
+                    <div ng-repeat="day in dailyForecast" class="bg-slate-900/50 border border-slate-800/80 rounded-2xl p-4 text-center flex flex-col justify-between hover:border-slate-700 transition-colors">
+                        <p class="text-xs font-bold text-slate-400 uppercase font-mono">{{day.dt * 1000 | date:'EEE, MMM d'}}</p>
+                        <img ng-src="https://openweathermap.org/img/wn/{{day.weather[0].icon}}@2x.png" class="w-14 h-14 mx-auto object-contain" alt="Forecast icon">
+                        <div>
+                            <h4 class="text-lg font-black text-white font-mono">{{convertTemp(day.main.temp) | number:0}}°</h4>
+                            <p class="text-[10px] text-slate-500 capitalize mt-0.5 truncate">{{day.weather[0].description}}</p>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <section class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-slate-900/30 border border-slate-800/60 p-5 rounded-3xl backdrop-blur-sm">
+                    <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-3 text-sky-400">Activity Clearance Analytics</h3>
+                    <div class="space-y-3">
+                        <div ng-repeat="(act, score) in activityScores" class="flex items-center justify-between border-b border-slate-800/40 pb-2 last:border-0 last:pb-0">
+                            <div class="flex items-center gap-2">
+                                <span class="text-base">{{activityMeta[act].icon}}</span>
+                                <span class="text-xs font-semibold text-slate-300">{{activityMeta[act].label}}</span>
+                            </div>
+                            <div class="flex items-center gap-3">
+                                <span class="text-xs font-mono font-bold" ng-style="{'color': score >= 75 ? '#34d399' : (score >= 45 ? '#fbbf24' : '#f87171')}">{{score}}%</span>
+                                <div class="w-20 bg-slate-800 h-1 rounded-full overflow-hidden">
+                                    <div class="h-full transition-all duration-500" ng-style="{'width': score + '%', 'background-color': score >= 75 ? '#34d399' : (score >= 45 ? '#fbbf24' : '#f87171')}"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/30 border border-slate-800/60 p-5 rounded-3xl backdrop-blur-sm flex flex-col justify-between">
+                    <div>
+                        <h3 class="text-sm font-bold text-white uppercase tracking-wider mb-3 text-indigo-400">International Aviation & Travel Log</h3>
+                        <div class="space-y-2.5">
+                            <div class="flex items-start gap-2.5 text-xs">
+                                <span ng-class="travelLog.flightDelayRisk === 'Low' ? 'text-emerald-400' : (travelLog.flightDelayRisk === 'Moderate' ? 'text-amber-400' : 'text-rose-400')">✈️</span>
+                                <p class="text-slate-300"><b class="text-white">Aviation Delay Vector:</b> {{travelLog.flightDelayRisk}} Risk Indicator (Wind components: {{convertSpeed(weather.wind.speed) | number:1}} {{isCelsius ? 'm/s' : 'mph'}}, Visibility: {{convertDist(weather.visibility) | number:1}} {{isCelsius ? 'km' : 'mi'}}).</p>
+                            </div>
+                            <div class="flex items-start gap-2.5 text-xs">
+                                <span>🧳</span>
+                                <p class="text-slate-300"><b class="text-white">Baggage & Shell Strategy:</b> {{travelLog.luggageAdvice}}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="pt-4 border-t border-slate-800/60 mt-4 flex items-center justify-between">
+                        <span class="text-[10px] text-slate-500 font-mono tracking-wider uppercase">Local Node Sync Zone</span>
+                        <span class="text-[10px] px-2 py-0.5 rounded font-mono font-bold" ng-class="isDaytime ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/20'">
+                            {{isDaytime ? 'DIURNAL INTERVAL' : 'NOCTURNAL INTERVAL'}}
+                        </span>
+                    </div>
+                </div>
+            </section>
+
+            <section class="mt-8 pt-6 border-t border-slate-800">
+                <div class="flex items-center justify-between mb-4">
+                    <div>
+                        <h3 class="text-xl font-bold text-white tracking-tight">Regional Climate & Eco Environmental Feeds</h3>
+                        <p class="text-xs text-slate-500">Live geo-contextual news distribution</p>
+                    </div>
+                    <span class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div class="bg-slate-900/30 border border-slate-800/50 p-5 rounded-2xl hover:border-slate-700/80 transition-colors group cursor-pointer">
+                        <span class="text-[10px] bg-sky-500/10 text-sky-400 border border-sky-500/20 font-bold px-2 py-0.5 rounded uppercase">Climate Report</span>
+                        <h4 class="text-sm font-semibold text-slate-200 mt-3 group-hover:text-sky-400 transition-colors leading-snug">How regional changes in {{weather.name}} are altering seasonal agriculture forecasts.</h4>
+                        <p class="text-xs text-slate-500 mt-2 line-clamp-2">New studies suggest urban adjustments are altering macro-level heat retention indexes across local areas.</p>
+                    </div>
+                    <div class="bg-slate-900/30 border border-slate-800/50 p-5 rounded-2xl hover:border-slate-700/80 transition-colors group cursor-pointer">
+                        <span class="text-[10px] bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-bold px-2 py-0.5 rounded uppercase">Green Tech</span>
+                        <h4 class="text-sm font-semibold text-slate-200 mt-3 group-hover:text-emerald-400 transition-colors leading-snug">Smart grid systems deployment ahead of upcoming pressure shifts.</h4>
+                        <p class="text-xs text-slate-500 mt-2 line-clamp-2">Municipal frameworks are shifting production load capacities based on current wind speeds of {{convertSpeed(weather.wind.speed) | number:1}} {{isCelsius ? 'm/s' : 'mph'}}.</p>
+                    </div>
+                    <div class="bg-slate-900/30 border border-slate-800/50 p-5 rounded-2xl hover:border-slate-700/80 transition-colors group cursor-pointer">
+                        <span class="text-[10px] bg-purple-500/10 text-purple-400 border border-purple-500/20 font-bold px-2 py-0.5 rounded uppercase">Premium Advisory</span>
+                        <h4 class="text-sm font-semibold text-slate-200 mt-3 group-hover:text-purple-400 transition-colors leading-snug">Optimal training routines given today's humidity level of {{weather.main.humidity}}%.</h4>
+                        <p class="text-xs text-slate-500 mt-2 line-clamp-2">Cardio and hydration structures change drastically when atmospheric indexes match today's specific profile.</p>
+                    </div>
+                </div>
+            </section>
+
+            <section class="border-t border-slate-800/60 pt-6">
+                <div class="flex items-center justify-between mb-3">
+                    <h4 class="text-xs font-bold tracking-widest text-slate-500 uppercase font-mono">Telemetry Control Array</h4>
+                    <button ng-click="showJson = !showJson" class="text-xs font-mono font-bold text-slate-400 hover:text-sky-400 transition-colors bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-lg cursor-pointer">
+                        {{showJson ? 'Mask Core JSON Payload' : 'Deconstruct Core Data JSON Object'}}
+                    </button>
+                </div>
+                <div ng-if="showJson" class="bg-slate-950 border border-slate-900 rounded-2xl p-4 overflow-x-auto max-h-72 shadow-inner text-xs font-mono text-emerald-400 relative">
+                    <button ng-click="copyJson()" class="absolute top-3 right-3 text-[10px] bg-slate-900 border border-slate-800 text-slate-300 px-2 py-1 rounded hover:text-white transition-all cursor-pointer">Copy Structure</button>
+                    <pre>{{rawTelemetryOut | json}}</pre>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+
+</html>
