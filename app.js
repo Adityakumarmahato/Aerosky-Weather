@@ -49,7 +49,6 @@ app.controller('WeatherController', function($scope, $http) {
     };
 
     $scope.cities = angular.copy($scope.majorCities);
-    
     angular.forEach($scope.localizedData, function(places) {
         $scope.cities = $scope.cities.concat(places);
     });
@@ -58,34 +57,23 @@ app.controller('WeatherController', function($scope, $http) {
         return self.indexOf(item) === index;
     });
 
-    $scope.selectedCity = "";
-    $scope.weatherData = null;
-    $scope.loading = false;
-    $scope.error = "";
+    $scope.city = "Mumbai"; 
+    $scope.weather = null; 
 
-    $scope.getWeather = function(cityName) {
-        if (!cityName) return;
+    $scope.getWeather = function() {
+        var searchTarget = $scope.city;
+        if (!searchTarget) return;
         
-        $scope.loading = true;
-        $scope.error = "";
-        
-        var url = "https://api.openweathermap.org/data/2.5/weather?q=" + encodeURIComponent(cityName) + "&units=metric&appid=" + apiKey;
+        var url = "https://api.openweathermap.org/data/2.5/weather?q=" + encodeURIComponent(searchTarget) + "&units=metric&appid=" + apiKey;
         
         $http.get(url)
             .then(function(response) {
-                $scope.weatherData = response.data;
-                $scope.loading = false;
-                
-                if ($scope.updateAdaptiveTheme) {
-                    $scope.updateAdaptiveTheme(response.data.weather[0].main);
-                }
+                $scope.weather = response.data;
             })
             .catch(function(error) {
-                $scope.loading = false;
-                $scope.error = "Could not retrieve weather metrics for this specific location.";
                 console.error(error);
             });
     };
 
-    $scope.getWeather("Jamshedpur");
+    $scope.getWeather();
 });
