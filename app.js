@@ -3,8 +3,8 @@ var app = angular.module('weatherApp', []);
 app.controller('WeatherController', function($scope, $http) {
     var apiKey = "2f2fa6d5d0491211a65e070dd1b17185"; 
 
-    $scope.isCelsius = true; 
-    $scope.showJson = false;
+    // Initialize units default (Metric / Celsius)
+    $scope.isCelsius = true;
 
     $scope.majorCities = [
         "Agra", "Ahmedabad", "Ajmer", "Akola", "Alappuzha", "Aligarh", "Allahabad",
@@ -63,40 +63,37 @@ app.controller('WeatherController', function($scope, $http) {
     $scope.city = "Mumbai"; 
     $scope.selectedCity = "Mumbai"; 
     $scope.weather = null; 
+    $scope.weatherData = null; 
     $scope.loading = false;
     $scope.error = "";
-    
-    $scope.toggleUnits = function() {
-        $scope.isCelsius = !$scope.isCelsius;
-    };
+    $scope.recentCities = [];
 
+    // Helper Conversion Functions expected by HTML filters
     $scope.convertTemp = function(tempC) {
         if (tempC === undefined || tempC === null) return 0;
         return $scope.isCelsius ? tempC : (tempC * 9/5) + 32;
     };
 
-    $scope.convertSpeed = function(speedMs) {
-        if (!speedMs) return 0;
-        return $scope.isCelsius ? speedMs : speedMs * 2.23694;
+    $scope.convertSpeed = function(speedMS) {
+        if (!speedMS) return 0;
+        // m/s to mph if Imperial, else stay m/s
+        return $scope.isCelsius ? speedMS : (speedMS * 2.23694);
     };
 
-    $scope.convertDist = function(meters) {
-        if (!meters) return 0;
-        return $scope.isCelsius ? (meters / 1000) : (meters / 1609.34);
+    $scope.convertDist = function(distMeters) {
+        if (!distMeters) return 0;
+        // meters to km if Metric, else to miles
+        return $scope.isCelsius ? (distMeters / 1000) : (distMeters / 1609.34);
     };
 
-    $scope.getWindDirection = function(deg) {
-        if (!deg) return "N";
-        var val = Math.floor((deg / 22.5) + 0.5);
-        var arr = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
-        return arr[(val % 16)];
+    $scope.toggleUnits = function() {
+        $scope.isCelsius = !$scope.isCelsius;
     };
 
-    $scope.getLifestyleAdvice = function(temp, humidity) {
-        if (!temp) return "Conditions are stable.";
-        if (temp > 30) return "High thermal exertion index. Stay hydrated.";
-        if (humidity > 80) return "Elevated moisture content detected.";
-        return "Ideal ambient baseline for routine outdoor operations.";
+    $scope.getWindDirection = function(degree) {
+        if (!degree) return 'N';
+        var directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+        return directions[Math.round(degree / 45) % 8];
     };
 
     $scope.getWeather = function(cityName) {
@@ -112,19 +109,27 @@ app.controller('WeatherController', function($scope, $http) {
             .then(function(response) {
                 var data = response.data;
                 
-                $scope.dewPoint = data.main.temp - ((100 - data.main.humidity) / 5);
-
-                var currentTime = Math.floor(Date.now() / 1000);
-                $scope.isDaytime = currentTime >= data.sys.sunrise && currentTime <= data.sys.sunset;
-                $scope.comfortIndex = data.main.humidity > 70 ? "Humid" : "Optimal";
-
+                // Assign to scope
                 $scope.weather = data;
-                $scope.rawTelemetryOut = data;
+                $scope.weatherData = data;
+                
+                // Compute Dewpoint & Comfort Index for HTML tags
+                if (data.main) {
+                    $scope.dewPoint = data.main.temp - ((100 - data.main.humidity) / 5);
+                    $scope.comfortIndex = data.main.humidity > 70 ? 'Humid' : (data.main.humidity < 30 ? 'Dry' : 'Optimal');
+                }
+
+                // Manage Recent Searches
+                if ($scope.recentCities.indexOf(data.name) === -1) {
+                    $scope.recentCities.unshift(data.name);
+                    if ($scope.recentCities.length > 5) $scope.recentCities.pop();
+                }
+
                 $scope.loading = false;
             })
             .catch(function(error) {
                 $scope.loading = false;
-                $scope.error = "Location payload error or city not found.";
+                $scope.error = "Unable to fetch data for location.";
                 console.error(error);
             });
     };
@@ -133,5 +138,18 @@ app.controller('WeatherController', function($scope, $http) {
         $scope.getWeather();
     };
 
+    $scope.selectCity = function(cityName) {
+        $scope.city = cityName;
+        $scope.getWeather(cityName);
+    };
+
+    $scope.removeRecentCity = function(city) {
+        var index = $scope.recentCities.indexOf(city);
+        if (index !== -1) {
+            $scope.recentCities.splice(index, 1);
+        }
+    };
+
+    // Initial Load
     $scope.getWeather();
 });
