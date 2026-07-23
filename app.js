@@ -3,8 +3,8 @@ var app = angular.module('weatherApp', []);
 app.controller('WeatherController', function($scope, $http) {
     var apiKey = "2f2fa6d5d0491211a65e070dd1b17185"; 
 
-    // Initialize units default (Metric / Celsius)
     $scope.isCelsius = true;
+    $scope.suggestions = [];
 
     $scope.majorCities = [
         "Agra", "Ahmedabad", "Ajmer", "Akola", "Alappuzha", "Aligarh", "Allahabad",
@@ -68,7 +68,25 @@ app.controller('WeatherController', function($scope, $http) {
     $scope.error = "";
     $scope.recentCities = [];
 
-    // Helper Conversion Functions expected by HTML filters
+    // Search Suggestions Logic
+    $scope.showSuggestions = function() {
+        if (!$scope.city || $scope.city.trim() === '') {
+            $scope.suggestions = [];
+            return;
+        }
+        var query = $scope.city.toLowerCase();
+        $scope.suggestions = $scope.cities.filter(function(cityName) {
+            return cityName.toLowerCase().indexOf(query) !== -1;
+        }).slice(0, 6);
+    };
+
+    $scope.selectCity = function(cityName) {
+        $scope.city = cityName;
+        $scope.suggestions = [];
+        $scope.getWeather(cityName);
+    };
+
+    // Helper Conversion Functions
     $scope.convertTemp = function(tempC) {
         if (tempC === undefined || tempC === null) return 0;
         return $scope.isCelsius ? tempC : (tempC * 9/5) + 32;
@@ -76,13 +94,11 @@ app.controller('WeatherController', function($scope, $http) {
 
     $scope.convertSpeed = function(speedMS) {
         if (!speedMS) return 0;
-        // m/s to mph if Imperial, else stay m/s
         return $scope.isCelsius ? speedMS : (speedMS * 2.23694);
     };
 
     $scope.convertDist = function(distMeters) {
         if (!distMeters) return 0;
-        // meters to km if Metric, else to miles
         return $scope.isCelsius ? (distMeters / 1000) : (distMeters / 1609.34);
     };
 
@@ -102,24 +118,21 @@ app.controller('WeatherController', function($scope, $http) {
         
         $scope.loading = true;
         $scope.error = "";
+        $scope.suggestions = [];
         
         var url = "https://api.openweathermap.org/data/2.5/weather?q=" + encodeURIComponent(searchTarget) + "&units=metric&appid=" + apiKey;
         
         $http.get(url)
             .then(function(response) {
                 var data = response.data;
-                
-                // Assign to scope
                 $scope.weather = data;
                 $scope.weatherData = data;
                 
-                // Compute Dewpoint & Comfort Index for HTML tags
                 if (data.main) {
                     $scope.dewPoint = data.main.temp - ((100 - data.main.humidity) / 5);
                     $scope.comfortIndex = data.main.humidity > 70 ? 'Humid' : (data.main.humidity < 30 ? 'Dry' : 'Optimal');
                 }
 
-                // Manage Recent Searches
                 if ($scope.recentCities.indexOf(data.name) === -1) {
                     $scope.recentCities.unshift(data.name);
                     if ($scope.recentCities.length > 5) $scope.recentCities.pop();
@@ -138,11 +151,6 @@ app.controller('WeatherController', function($scope, $http) {
         $scope.getWeather();
     };
 
-    $scope.selectCity = function(cityName) {
-        $scope.city = cityName;
-        $scope.getWeather(cityName);
-    };
-
     $scope.removeRecentCity = function(city) {
         var index = $scope.recentCities.indexOf(city);
         if (index !== -1) {
@@ -150,6 +158,5 @@ app.controller('WeatherController', function($scope, $http) {
         }
     };
 
-    // Initial Load
     $scope.getWeather();
 });
