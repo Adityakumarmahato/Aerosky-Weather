@@ -3,6 +3,9 @@ var app = angular.module('weatherApp', []);
 app.controller('WeatherController', function($scope, $http) {
     var apiKey = "2f2fa6d5d0491211a65e070dd1b17185"; 
 
+    $scope.isCelsius = true; 
+    $scope.showJson = false;
+
     $scope.majorCities = [
         "Agra", "Ahmedabad", "Ajmer", "Akola", "Alappuzha", "Aligarh", "Allahabad",
         "Amravati", "Amritsar", "Aurangabad", "Bangalore", "Barasat", "Bareilly",
@@ -60,9 +63,41 @@ app.controller('WeatherController', function($scope, $http) {
     $scope.city = "Mumbai"; 
     $scope.selectedCity = "Mumbai"; 
     $scope.weather = null; 
-    $scope.weatherData = null; 
     $scope.loading = false;
     $scope.error = "";
+    
+    $scope.toggleUnits = function() {
+        $scope.isCelsius = !$scope.isCelsius;
+    };
+
+    $scope.convertTemp = function(tempC) {
+        if (tempC === undefined || tempC === null) return 0;
+        return $scope.isCelsius ? tempC : (tempC * 9/5) + 32;
+    };
+
+    $scope.convertSpeed = function(speedMs) {
+        if (!speedMs) return 0;
+        return $scope.isCelsius ? speedMs : speedMs * 2.23694;
+    };
+
+    $scope.convertDist = function(meters) {
+        if (!meters) return 0;
+        return $scope.isCelsius ? (meters / 1000) : (meters / 1609.34);
+    };
+
+    $scope.getWindDirection = function(deg) {
+        if (!deg) return "N";
+        var val = Math.floor((deg / 22.5) + 0.5);
+        var arr = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+        return arr[(val % 16)];
+    };
+
+    $scope.getLifestyleAdvice = function(temp, humidity) {
+        if (!temp) return "Conditions are stable.";
+        if (temp > 30) return "High thermal exertion index. Stay hydrated.";
+        if (humidity > 80) return "Elevated moisture content detected.";
+        return "Ideal ambient baseline for routine outdoor operations.";
+    };
 
     $scope.getWeather = function(cityName) {
         var searchTarget = cityName || $scope.city || $scope.selectedCity;
@@ -77,25 +112,19 @@ app.controller('WeatherController', function($scope, $http) {
             .then(function(response) {
                 var data = response.data;
                 
-                // 🌪️ FLAT MAP DATA LAYER: Populates explicit variable properties to fit your index.html slots perfectly
-                data.temperature = Math.round(data.main.temp);
-                data.temp = Math.round(data.main.temp);
-                data.feels_like = Math.round(data.main.feels_like);
-                data.feels = Math.round(data.main.feels_like);
-                data.dewpoint = Math.round(data.main.temp - ((100 - data.main.humidity) / 5)); // Calculates standard physical dewpoint
-                data.windSpeed = data.wind.speed;
-                data.wind_speed = data.wind.speed;
-                data.visibilityMiles = (data.visibility / 1609).toFixed(1);
-                data.visibility_miles = (data.visibility / 1609).toFixed(1);
+                $scope.dewPoint = data.main.temp - ((100 - data.main.humidity) / 5);
 
-                // Send the enhanced object to your templates
+                var currentTime = Math.floor(Date.now() / 1000);
+                $scope.isDaytime = currentTime >= data.sys.sunrise && currentTime <= data.sys.sunset;
+                $scope.comfortIndex = data.main.humidity > 70 ? "Humid" : "Optimal";
+
                 $scope.weather = data;
-                $scope.weatherData = data;
+                $scope.rawTelemetryOut = data;
                 $scope.loading = false;
             })
             .catch(function(error) {
                 $scope.loading = false;
-                $scope.error = "Location payload error.";
+                $scope.error = "Location payload error or city not found.";
                 console.error(error);
             });
     };
